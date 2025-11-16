@@ -103,11 +103,13 @@ graph TB
     ALB -->|/*| FE
     FE -->|REST API Calls| BE
     BE -->|SQLite DB| BE
-    ECS Fargate Cluster -->|Pull Images| ECR
+    FE -->|Pull Images| ECR
+    BE -->|Pull Images| ECR
     FE -->|Logs| CW
     BE -->|Logs| CW
     ALB -.->|Public Access| IGW
-    ECS Fargate Cluster -.->|Internet Access| NAT
+    FE -.->|Internet Access| NAT
+    BE -.->|Internet Access| NAT
     NAT -.->|Internet| IGW
 ```
 
