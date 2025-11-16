@@ -534,6 +534,583 @@ Access URLs:
 
 ---
 
+## 📋 Complete Deployment Guide
+
+This section provides a comprehensive, step-by-step guide to deploy the entire project to AWS, including all secrets, credentials, and commands needed.
+
+### Prerequisites Checklist
+
+Before starting, ensure you have:
+
+- [ ] AWS Account created and active
+- [ ] AWS CLI installed and configured
+- [ ] Terraform installed (>= 1.0)
+- [ ] Docker installed and running
+- [ ] Git installed
+- [ ] Terminal/Command line access
+
+### Step-by-Step Deployment Instructions
+
+#### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/NoManNayeem/Terraform_POC.git
+cd Terraform_POC
+```
+
+#### Step 2: Configure AWS Credentials
+
+**Option A: Using AWS CLI (Recommended)**
+
+```bash
+aws configure
+```
+
+You'll be prompted to enter:
+- **AWS Access Key ID**: `AKIAIOSFODNN7EXAMPLE` (your actual access key)
+- **AWS Secret Access Key**: `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` (your actual secret key)
+- **Default region name**: `us-east-1` (or your preferred region)
+- **Default output format**: `json`
+
+**Option B: Using Environment Variables**
+
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+export AWS_DEFAULT_REGION="us-east-1"
+```
+
+**Option C: Using AWS Profiles**
+
+```bash
+aws configure --profile terraform-poc
+# Enter credentials when prompted
+export AWS_PROFILE=terraform-poc
+```
+
+**Verify AWS Configuration:**
+
+```bash
+aws sts get-caller-identity
+```
+
+Expected output:
+```json
+{
+    "UserId": "AIDAIOSFODNN7EXAMPLE",
+    "Account": "123456789012",
+    "Arn": "arn:aws:iam::123456789012:user/your-username"
+}
+```
+
+#### Step 3: Configure Backend Environment Variables
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Edit `.env` file with your preferred editor:
+
+```bash
+# Using nano
+nano .env
+
+# Or using vim
+vim .env
+
+# Or using VS Code
+code .env
+```
+
+**Required values in `.env`:**
+
+```env
+# Database Configuration
+DATABASE_URL=sqlite:///./app.db
+
+# Security - IMPORTANT: Change this to a secure random string
+SECRET_KEY=your-super-secret-key-change-this-in-production-min-32-chars
+
+# Debug Mode (set to false for production)
+DEBUG=false
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+```
+
+**Generate a secure SECRET_KEY:**
+
+```bash
+# Using Python
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Using OpenSSL
+openssl rand -hex 32
+
+# Using Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+#### Step 4: Configure Frontend Environment Variables
+
+```bash
+cd ../frontend
+cp .env.example .env.local
+```
+
+Edit `.env.local` file:
+
+```env
+# Backend API URL
+# For local development, use: http://localhost:8000/api
+# For production, this will be updated after ALB is created
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+```
+
+**Note:** We'll update this with the actual ALB DNS name after infrastructure is deployed.
+
+#### Step 5: Configure Terraform Variables
+
+```bash
+cd ../terraform
+cp terraform.tfvars.example terraform.tfvars
+```
+
+Edit `terraform.tfvars` with your values:
+
+```hcl
+# AWS Configuration
+aws_region   = "us-east-1"  # Change to your preferred region
+project_name = "fastapi-nextjs-poc"
+environment  = "dev"
+
+# Backend Environment Variables
+# These will be passed to the ECS task
+backend_env_vars = {
+  DATABASE_URL = "sqlite:///./app.db"
+  SECRET_KEY   = "your-super-secret-key-change-this-min-32-chars"
+  DEBUG        = "false"
+  HOST         = "0.0.0.0"
+  PORT         = "8000"
+}
+
+# Frontend Environment Variables
+# Note: NEXT_PUBLIC_API_URL will be updated after ALB is created
+frontend_env_vars = {
+  NEXT_PUBLIC_API_URL = "http://placeholder-will-update-after-alb-creation/api"
+}
+```
+
+**Important:** 
+- Replace `SECRET_KEY` with the same secure key you used in backend `.env`
+- The `NEXT_PUBLIC_API_URL` is a placeholder - we'll update it in Step 8
+
+#### Step 6: Initialize Terraform
+
+```bash
+cd terraform
+terraform init
+```
+
+Expected output:
+```
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding hashicorp/aws versions matching "~> 5.0"...
+- Installing hashicorp/aws v5.x.x...
+...
+
+Terraform has been successfully initialized!
+```
+
+#### Step 7: Review Terraform Plan
+
+```bash
+terraform plan
+```
+
+This shows what resources will be created. Review carefully:
+
+- **Expected resources:** ~25 resources
+- **Estimated cost:** ~$66/month
+- **Resources include:** VPC, Subnets, NAT Gateway, ALB, ECS Cluster, ECR Repositories, etc.
+
+**Common issues and fixes:**
+
+```bash
+# If you get authentication errors
+aws configure list
+aws sts get-caller-identity
+
+# If you get region errors
+export AWS_DEFAULT_REGION="us-east-1"
+
+# If you get permission errors
+# Ensure your IAM user has AdministratorAccess or required permissions
+```
+
+#### Step 8: Deploy Infrastructure
+
+```bash
+terraform apply
+```
+
+You'll be prompted to confirm:
+```
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+```
+
+**Type `yes` and press Enter.**
+
+**Expected output:**
+```
+Apply complete! Resources: 25 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+alb_dns_name = "fastapi-nextjs-poc-alb-1234567890.us-east-1.elb.amazonaws.com"
+alb_zone_id = "Z1D633PJN98FT9"
+backend_ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-nextjs-poc-backend"
+frontend_ecr_repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/fastapi-nextjs-poc-frontend"
+backend_service_name = "fastapi-nextjs-poc-backend-service"
+frontend_service_name = "fastapi-nextjs-poc-frontend-service"
+vpc_id = "vpc-0123456789abcdef0"
+application_url = "http://fastapi-nextjs-poc-alb-1234567890.us-east-1.elb.amazonaws.com"
+backend_api_url = "http://fastapi-nextjs-poc-alb-1234567890.us-east-1.elb.amazonaws.com/api"
+```
+
+**Save the ALB DNS name** - you'll need it in the next step!
+
+#### Step 9: Update Frontend Environment Variable
+
+Get the ALB DNS name:
+
+```bash
+terraform output alb_dns_name
+```
+
+Update `terraform.tfvars`:
+
+```bash
+# Edit terraform.tfvars
+nano terraform.tfvars
+# or
+vim terraform.tfvars
+```
+
+Update the `frontend_env_vars` section:
+
+```hcl
+frontend_env_vars = {
+  NEXT_PUBLIC_API_URL = "http://fastapi-nextjs-poc-alb-1234567890.us-east-1.elb.amazonaws.com/api"
+  # Replace with your actual ALB DNS name from terraform output
+}
+```
+
+**Reapply Terraform:**
+
+```bash
+terraform apply
+```
+
+Type `yes` when prompted.
+
+#### Step 10: Build and Push Docker Images
+
+**Option A: Using the provided script (Recommended)**
+
+```bash
+# From project root directory
+cd ..
+./scripts/build-and-push.sh all
+```
+
+**Option B: Manual build and push**
+
+**Backend:**
+
+```bash
+# Get AWS account ID and region
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+AWS_REGION=$(aws configure get region)
+
+# Get ECR login token
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+# Get ECR repository URL
+ECR_REPO=$(cd terraform && terraform output -raw backend_ecr_repository_url)
+
+# Build backend image
+cd backend
+docker build -t backend:latest .
+
+# Tag image
+docker tag backend:latest $ECR_REPO:latest
+
+# Push image
+docker push $ECR_REPO:latest
+```
+
+**Frontend:**
+
+```bash
+# Get ECR repository URL
+ECR_REPO=$(cd terraform && terraform output -raw frontend_ecr_repository_url)
+
+# Build frontend image
+cd frontend
+docker build -t frontend:latest .
+
+# Tag image
+docker tag frontend:latest $ECR_REPO:latest
+
+# Push image
+docker push $ECR_REPO:latest
+```
+
+**Verify images are pushed:**
+
+```bash
+# List backend images
+aws ecr list-images --repository-name fastapi-nextjs-poc-backend
+
+# List frontend images
+aws ecr list-images --repository-name fastapi-nextjs-poc-frontend
+```
+
+#### Step 11: Verify ECS Services are Running
+
+**Check service status:**
+
+```bash
+# Get cluster name
+CLUSTER_NAME=$(cd terraform && terraform output -raw project_name)-cluster
+
+# Check backend service
+aws ecs describe-services \
+  --cluster $CLUSTER_NAME \
+  --services fastapi-nextjs-poc-backend-service \
+  --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,Events:events[0:3]}'
+
+# Check frontend service
+aws ecs describe-services \
+  --cluster $CLUSTER_NAME \
+  --services fastapi-nextjs-poc-frontend-service \
+  --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,Events:events[0:3]}'
+```
+
+**Check task status:**
+
+```bash
+# List running tasks
+aws ecs list-tasks --cluster $CLUSTER_NAME
+
+# Get task details
+TASK_ARN=$(aws ecs list-tasks --cluster $CLUSTER_NAME --service-name fastapi-nextjs-poc-backend-service --query 'taskArns[0]' --output text)
+aws ecs describe-tasks --cluster $CLUSTER_NAME --tasks $TASK_ARN
+```
+
+**View logs:**
+
+```bash
+# Backend logs
+aws logs tail /ecs/fastapi-nextjs-poc/backend --follow
+
+# Frontend logs
+aws logs tail /ecs/fastapi-nextjs-poc/frontend --follow
+```
+
+#### Step 12: Verify Application is Accessible
+
+Get the ALB DNS name:
+
+```bash
+cd terraform
+ALB_DNS=$(terraform output -raw alb_dns_name)
+echo "Application URL: http://$ALB_DNS"
+```
+
+**Test endpoints:**
+
+```bash
+# Health check
+curl http://$ALB_DNS/health
+
+# Backend API health
+curl http://$ALB_DNS/api/health
+
+# Frontend (should return HTML)
+curl http://$ALB_DNS/
+
+# API endpoint
+curl http://$ALB_DNS/api/items
+```
+
+**Expected responses:**
+
+- Health check: `{"status":"healthy","service":"backend"}`
+- API items: `[]` (empty array initially)
+- Frontend: HTML content
+
+#### Step 13: Access Your Application
+
+Open in browser:
+
+- **Frontend**: `http://<alb-dns-name>/`
+- **Backend API**: `http://<alb-dns-name>/api/`
+- **API Documentation**: `http://<alb-dns-name>/docs`
+- **Health Check**: `http://<alb-dns-name>/health`
+
+### Quick Reference: All Commands in Order
+
+```bash
+# 1. Clone repository
+git clone https://github.com/NoManNayeem/Terraform_POC.git
+cd Terraform_POC
+
+# 2. Configure AWS
+aws configure
+
+# 3. Configure backend
+cd backend
+cp .env.example .env
+# Edit .env with your values
+
+# 4. Configure frontend
+cd ../frontend
+cp .env.example .env.local
+# Edit .env.local (will update after ALB creation)
+
+# 5. Configure Terraform
+cd ../terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+
+# 6. Initialize and deploy
+terraform init
+terraform plan
+terraform apply  # Type 'yes' when prompted
+
+# 7. Get ALB DNS name
+terraform output alb_dns_name
+
+# 8. Update terraform.tfvars with ALB DNS name
+# Edit terraform.tfvars: Update NEXT_PUBLIC_API_URL
+terraform apply  # Type 'yes' when prompted
+
+# 9. Build and push images
+cd ..
+./scripts/build-and-push.sh all
+
+# 10. Verify deployment
+cd terraform
+terraform output alb_dns_name
+# Test in browser or with curl
+```
+
+### Secrets and Credentials Summary
+
+| Secret/Credential | Where to Get/Set | Location |
+|-------------------|------------------|----------|
+| **AWS Access Key ID** | AWS IAM Console → Users → Security Credentials | `aws configure` or environment variable |
+| **AWS Secret Access Key** | AWS IAM Console → Users → Security Credentials | `aws configure` or environment variable |
+| **AWS Region** | Choose your preferred region | `terraform.tfvars` or `aws configure` |
+| **Backend SECRET_KEY** | Generate using Python/OpenSSL | `backend/.env` and `terraform.tfvars` |
+| **ALB DNS Name** | From Terraform output | `terraform.tfvars` (frontend_env_vars) |
+| **ECR Repository URLs** | From Terraform output | Used automatically by build script |
+
+### Troubleshooting Common Issues
+
+**Issue: "Unable to locate credentials"**
+
+```bash
+# Check AWS configuration
+aws configure list
+aws sts get-caller-identity
+
+# Reconfigure if needed
+aws configure
+```
+
+**Issue: "Error creating ECR repository: AccessDenied"**
+
+```bash
+# Check IAM permissions
+aws iam get-user
+aws iam list-attached-user-policies --user-name your-username
+
+# Ensure you have ECR permissions or AdministratorAccess
+```
+
+**Issue: "Docker push failed: no basic auth credentials"**
+
+```bash
+# Re-authenticate Docker to ECR
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+AWS_REGION=$(aws configure get region)
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+```
+
+**Issue: "ECS tasks not starting"**
+
+```bash
+# Check service events
+aws ecs describe-services \
+  --cluster fastapi-nextjs-poc-cluster \
+  --services fastapi-nextjs-poc-backend-service
+
+# Check task logs
+aws logs tail /ecs/fastapi-nextjs-poc/backend --follow
+```
+
+**Issue: "502 Bad Gateway"**
+
+```bash
+# Check target group health
+aws elbv2 describe-target-health \
+  --target-group-arn $(aws elbv2 describe-target-groups --names fastapi-nextjs-poc-backend-tg --query 'TargetGroups[0].TargetGroupArn' --output text)
+
+# Check security groups
+aws ec2 describe-security-groups --filters "Name=group-name,Values=fastapi-nextjs-poc-*"
+```
+
+### Post-Deployment Checklist
+
+- [ ] Application is accessible via ALB DNS name
+- [ ] Frontend loads correctly
+- [ ] Backend API responds to requests
+- [ ] Health checks are passing
+- [ ] CloudWatch logs are being generated
+- [ ] ECS tasks are running and healthy
+- [ ] Docker images are in ECR
+- [ ] Security groups are configured correctly
+
+### Cost Monitoring
+
+**Set up billing alerts:**
+
+```bash
+# Create a budget (requires AWS Budgets access)
+aws budgets create-budget \
+  --account-id $(aws sts get-caller-identity --query Account --output text) \
+  --budget file://budget.json
+```
+
+**Monitor costs:**
+
+- AWS Cost Explorer: https://console.aws.amazon.com/cost-management/home
+- Set up billing alerts in AWS Billing Console
+- Estimated monthly cost: ~$66/month for this POC setup
+
+---
+
 ## 💻 Local Development
 
 ### Backend Development
