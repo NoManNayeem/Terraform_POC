@@ -1,0 +1,17 @@
+aws_region     = "us-east-1"
+project_name   = "fastapi-nextjs-poc"
+environment    = "dev"
+
+# Backend environment variables
+backend_env_vars = {
+  DATABASE_URL = "sqlite:///./app.db"
+  SECRET_KEY   = "your-secret-key-here"
+  DEBUG        = "false"
+}
+
+# Frontend environment variables
+# Note: NEXT_PUBLIC_API_URL will be set after ALB is created
+frontend_env_vars = {
+  NEXT_PUBLIC_API_URL = "http://your-alb-dns-name/api"
+}
+
