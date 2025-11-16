@@ -1158,15 +1158,190 @@ Frontend available at: `http://localhost:3000`
 
 ### Docker Compose (Local)
 
+Run the entire stack locally using Docker Compose:
+
+#### Prerequisites
+
+- Docker installed and running
+- Docker Compose installed (usually included with Docker Desktop)
+
+#### Quick Start
+
 ```bash
-# From project root
+# From project root directory
 docker-compose up -d
+```
+
+This will:
+1. Build Docker images for both backend and frontend
+2. Start both services
+3. Set up networking between containers
+4. Mount volumes for development
+
+#### Access the Application
+
+Once containers are running:
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
+
+#### Useful Commands
+
+```bash
+# Start services in detached mode
+docker-compose up -d
+
+# Start services and view logs
+docker-compose up
 
 # View logs
 docker-compose logs -f
 
+# View logs for specific service
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
 # Stop services
 docker-compose down
+
+# Stop and remove volumes (cleans database)
+docker-compose down -v
+
+# Rebuild images (after code changes)
+docker-compose up -d --build
+
+# Restart a specific service
+docker-compose restart backend
+docker-compose restart frontend
+
+# Check service status
+docker-compose ps
+
+# Execute commands in running container
+docker-compose exec backend bash
+docker-compose exec frontend sh
+
+# View container resource usage
+docker stats
+```
+
+#### Environment Variables
+
+The `docker-compose.yml` file includes default environment variables. To customize:
+
+**Option 1: Edit docker-compose.yml directly**
+
+```yaml
+environment:
+  - DATABASE_URL=sqlite:///./app.db
+  - SECRET_KEY=your-custom-secret-key
+  - DEBUG=true
+```
+
+**Option 2: Use .env file**
+
+Create a `.env` file in the project root:
+
+```env
+BACKEND_SECRET_KEY=your-secret-key-here
+BACKEND_DEBUG=true
+FRONTEND_API_URL=http://localhost:8000/api
+```
+
+Then reference in `docker-compose.yml`:
+
+```yaml
+environment:
+  - SECRET_KEY=${BACKEND_SECRET_KEY}
+  - DEBUG=${BACKEND_DEBUG}
+```
+
+#### Troubleshooting
+
+**Issue: Port already in use**
+
+```bash
+# Check what's using the port
+lsof -i :8000  # macOS/Linux
+netstat -ano | findstr :8000  # Windows
+
+# Change ports in docker-compose.yml
+ports:
+  - "8001:8000"  # Use 8001 instead of 8000
+```
+
+**Issue: Containers won't start**
+
+```bash
+# Check logs
+docker-compose logs
+
+# Rebuild from scratch
+docker-compose down -v
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+**Issue: Frontend can't connect to backend**
+
+The frontend uses `http://localhost:8000/api` for browser requests, but inside Docker it should use `http://backend:8000/api`. The docker-compose.yml handles this with different URLs for internal vs external access.
+
+**Issue: Database not persisting**
+
+```bash
+# Check volume
+docker volume ls
+docker volume inspect terraform_backend-data
+
+# Reset database
+docker-compose down -v
+docker-compose up -d
+```
+
+**Issue: Changes not reflecting**
+
+```bash
+# Rebuild and restart
+docker-compose up -d --build
+
+# Or restart specific service
+docker-compose restart backend
+```
+
+#### Development Workflow
+
+1. **Make code changes** in `backend/` or `frontend/`
+2. **For backend**: Changes are reflected immediately (volume mount)
+3. **For frontend**: Rebuild required for Next.js changes
+   ```bash
+   docker-compose up -d --build frontend
+   ```
+
+#### Production-like Testing
+
+To test production builds locally:
+
+```bash
+# Build production images
+docker-compose -f docker-compose.yml build
+
+# Run with production settings
+docker-compose up -d
+```
+
+#### Clean Up
+
+```bash
+# Stop and remove containers
+docker-compose down
+
+# Remove containers, volumes, and images
+docker-compose down -v --rmi all
+
+# Remove all unused Docker resources
+docker system prune -a
 ```
 
 ---
