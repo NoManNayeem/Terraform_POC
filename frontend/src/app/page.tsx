@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { getItems, createItem, deleteItem, Item } from '@/lib/api'
 import { 
-  FiRocket, 
+  FiZap, 
   FiPlus, 
   FiPackage, 
   FiClock, 
@@ -87,7 +87,7 @@ export default function Home() {
     <div className="container">
       <div className="header">
         <h1>
-          <FiRocket className="header-icon" />
+          <FiZap className="header-icon" />
           FastAPI + Next.js POC
         </h1>
         <p>Modern Full-Stack Application with AWS ECS Deployment</p>
